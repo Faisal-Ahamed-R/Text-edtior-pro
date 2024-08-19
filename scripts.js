@@ -1,108 +1,110 @@
-// Function to convert text to a single line with the first letter of each word capitalized and commas between non-empty lines
-function convertToSingleLine() {
-    const inputText = document.getElementById('inputText1').value;
-    const sentences = inputText.split('\n').map(sentence => sentence.trim()).filter(sentence => sentence !== "");
+const canvas = document.getElementById('whiteboard');
+const ctx = canvas.getContext('2d');
 
-    // Capitalize the first letter of each word in non-empty sentences
-    const formattedSentences = sentences.map(sentence => 
-        sentence.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')
-    );
+let drawing = false;
+let color = '#000';
+let size = 5;
+let tool = 'pencil';
+let shapes = [];
+let undoStack = [];
+let redoStack = [];
 
-    // Join sentences with a comma and space
-    const outputText = formattedSentences.join(', ');
-
-    document.getElementById('outputText1').value = outputText;
-    updateCharacterCount('outputText1');
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight - 50;
 }
 
-// Function to convert text to N x 2 format
-function convertToNby2() {
-    const inputText = document.getElementById('inputText2').value;
-    const lines = inputText.trim().split('\n').map(line => line.trim()).filter(line => line.length > 0);
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
 
-    const n = lines.length;
-    const outputLines = [];
+canvas.addEventListener('mousedown', startDrawing);
+canvas.addEventListener('mouseup', stopDrawing);
+canvas.addEventListener('mousemove', draw);
 
-    for (let i = 0; i < n; i += 2) {
-        outputLines.push(lines.slice(i, i + 2).join(' '));
+function startDrawing(e) {
+    drawing = true;
+    ctx.beginPath();
+    ctx.moveTo(e.clientX, e.clientY);
+}
+
+function stopDrawing() {
+    drawing = false;
+    ctx.closePath();
+    undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    redoStack = [];
+}
+
+function draw(e) {
+    if (!drawing) return;
+    ctx.lineTo(e.clientX, e.clientY);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = size;
+    ctx.stroke();
+}
+
+document.getElementById('clear').addEventListener('click', () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+});
+
+document.getElementById('undo').addEventListener('click', () => {
+    if (undoStack.length > 0) {
+        redoStack.push(undoStack.pop());
+        const lastState = undoStack[undoStack.length - 1];
+        if (lastState) {
+            ctx.putImageData(lastState, 0, 0);
+        } else {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
     }
+});
 
-    const outputText = outputLines.join('\n');
-
-    document.getElementById('outputText2').value = outputText;
-    updateCharacterCount('outputText2');
-}
-
-// Function to format column text
-function formatColumnText() {
-    const inputText = document.getElementById('inputText3').value;
-    const lines = inputText.trim().split('\n').map(line => line.trim()).filter(line => line.length > 0);
-
-    // Example logic: Adjust based on your requirements
-    const formattedText = lines.join('\n'); // Replace with actual formatting logic if needed
-
-    document.getElementById('outputText3').value = formattedText;
-    updateCharacterCount('outputText3');
-}
-
-// Function to copy text to clipboard
-function copyText(textareaId) {
-    const textarea = document.getElementById(textareaId);
-    textarea.select();
-    document.execCommand('copy');
-}
-
-// Function to update character count and repeated words
-function updateCharacterCount(textareaId) {
-    const textarea = document.getElementById(textareaId);
-    const text = textarea.value;
-    const charCount = text.length;
-    document.getElementById(`characterCount${textareaId.slice(-1)}`).innerText = `Character Count: ${charCount}`;
-
-    // Example repeated words logic: Adjust based on your requirements
-    const words = text.split(/\s+/).filter(Boolean);
-    const wordCounts = {};
-    words.forEach(word => {
-        wordCounts[word] = (wordCounts[word] || 0) + 1;
-    });
-    const repeatedWords = Object.keys(wordCounts).filter(word => wordCounts[word] > 1).join(', ');
-    document.getElementById(`repeatedWords${textareaId.slice(-1)}`).innerText = `Repeated Words: ${repeatedWords}`;
-}
-// Function to toggle dark mode
-function toggleDarkMode() {
-    const body = document.body;
-    const sections = document.querySelectorAll('.section');
-    const textareas = document.querySelectorAll('textarea');
-    const buttons = document.querySelectorAll('button');
-    const characterCounts = document.querySelectorAll('[id^="characterCount"]');
-    const repeatedWords = document.querySelectorAll('[id^="repeatedWords"]');
-
-    body.classList.toggle('dark-mode');
-    sections.forEach(section => section.classList.toggle('dark-mode'));
-    textareas.forEach(textarea => textarea.classList.toggle('dark-mode'));
-    buttons.forEach(button => button.classList.toggle('dark-mode'));
-    characterCounts.forEach(count => count.classList.toggle('dark-mode'));
-    repeatedWords.forEach(word => word.classList.toggle('dark-mode'));
-}
-
-// Check localStorage for dark mode preference
-document.addEventListener('DOMContentLoaded', () => {
-    const darkMode = localStorage.getItem('darkMode') === 'true';
-    if (darkMode) {
-        toggleDarkMode(); // Apply dark mode if previously enabled
+document.getElementById('redo').addEventListener('click', () => {
+    if (redoStack.length > 0) {
+        const nextState = redoStack.pop();
+        undoStack.push(nextState);
+        ctx.putImageData(nextState, 0, 0);
     }
+});
 
-    // Create a toggle button for dark mode and add it to the top
-    const toggleButton = document.createElement('button');
-    toggleButton.textContent = 'Toggle Dark Mode';
-    toggleButton.classList.add('dark-mode-toggle');
-    toggleButton.onclick = () => {
-        toggleDarkMode();
-        // Save the current mode in localStorage
-        const darkModeEnabled = document.body.classList.contains('dark-mode');
-        localStorage.setItem('darkMode', darkModeEnabled);
+document.getElementById('colorPicker').addEventListener('input', (e) => {
+    color = e.target.value;
+});
+
+document.getElementById('sizePicker').addEventListener('input', (e) => {
+    size = e.target.value;
+});
+
+document.getElementById('eraser').addEventListener('click', () => {
+    tool = 'eraser';
+    color = '#FFF';
+});
+
+document.getElementById('pencil').addEventListener('click', () => {
+    tool = 'pencil';
+    color = '#000';
+});
+
+document.getElementById('fullscreen').addEventListener('click', () => {
+    if (canvas.requestFullscreen) {
+        canvas.requestFullscreen();
+    }
+});
+
+document.getElementById('saveAsImage').addEventListener('click', () => {
+    const link = document.createElement('a');
+    link.download = 'whiteboard.png';
+    link.href = canvas.toDataURL();
+    link.click();
+});
+
+document.getElementById('imageUpload').addEventListener('change', (e) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+            ctx.drawImage(img, 0, 0);
+        };
+        img.src = event.target.result;
     };
-
-    // Append the toggle button to the header
-    document.querySelector('header').appendChild(toggleButton);
+    reader.readAsDataURL(e.target.files[0]);
 });
